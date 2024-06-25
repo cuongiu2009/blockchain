@@ -155,6 +155,10 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 	return bci
 }
 
+func (bc *Blockchain) AddBlock(transactions []*Transaction) {
+	bc.MineBlock(transactions)
+}
+
 // Next returns next block starting from the tip
 func (i *BlockchainIterator) Next() *Block {
 	var block *Block

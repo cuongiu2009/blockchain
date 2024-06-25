@@ -37,6 +37,7 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  createblockchain -address ADDRESS - Create a blockchain and send genesis block reward to ADDRESS")
 	fmt.Println("  printchain - Print all the blocks of the blockchain")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT - Send AMOUNT of coins from FROM address to TO")
+	fmt.Println("  addblock -data DATA - Add a block to the blockchain")
 }
 
 func (cli *CLI) validateArgs() {
@@ -53,18 +54,24 @@ func (cli *CLI) printChain() {
 
 	bci := bc.Iterator()
 
+	var blocks []*Block
 	for {
 		block := bci.Next()
+		blocks = append(blocks, block)
+		if len(block.PrevBlockHash) == 0 {
+			break // Break if it's the genesis block
+		}
+	}
 
+	// Step 2: Reverse iterate through the blocks slice and print each block
+	for i := len(blocks) - 1; i >= 0; i-- {
+		block := blocks[i]
+		fmt.Println("======== Block ========")
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println()
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
 	}
 }
 
@@ -85,12 +92,14 @@ func (cli *CLI) Run() {
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
+	addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
 	sendTo := sendCmd.String("to", "", "Destination wallet address")
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
+	addBlockData := addBlockCmd.String("data", "", "Block data")
 
 	switch os.Args[1] {
 	case "getbalance":
@@ -110,6 +119,11 @@ func (cli *CLI) Run() {
 		}
 	case "send":
 		err := sendCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "addblock":
+		err := addBlockCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -145,6 +159,21 @@ func (cli *CLI) Run() {
 		}
 
 		cli.send(*sendFrom, *sendTo, *sendAmount)
+	}
+	if addBlockCmd.Parsed() {
+		if *addBlockData == "" {
+			addBlockCmd.Usage()
+			os.Exit(1)
+		}
+		blockchain := NewBlockchain("") // Assuming NewBlockchain initializes or loads the existing blockchain
+		defer blockchain.db.Close()
+
+		// Create a new transaction with dummy values for TXInput and TXOutput
+		// In a real application, you would parse *addBlockData to create meaningful transactions
+		tx := Transaction{nil, []TXInput{{}}, []TXOutput{{Value: 0, ScriptPubKey: *addBlockData}}}
+		blockchain.AddBlock([]*Transaction{&tx})
+
+		fmt.Println("Success! Added Block")
 	}
 
 }
